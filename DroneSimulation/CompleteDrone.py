@@ -219,9 +219,12 @@ def detectColor(){
 
 def Calculate():
     print("Entered calculate function")
-    global aruco,color,x_distance,y_distance,actual_centers_dist,angle
-    if aruco==1:
-        print("Marker detected")
+    global aruco_dropzone,aruco_dropzone,color,x_distance,y_distance,actual_centers_dist,angle
+    if aruco_package==1 or aruco_dropzone==1:
+        if aruco_package==1:
+            print("Marker detected")
+        if aruco_package==1:
+            print("Dropzone detected")
         print(x_distance,",",y_distance)
         dur = 5
         print(dur)
@@ -235,11 +238,21 @@ def Calculate():
             print(x_distance,",",y_distance)
             time.sleep(1)
         print("Reached the aruco marker")
-        print("Reducing the altitude to pick the package")
-        send_global_velocity(0,0,1,2)
-        time.sleep(10)
-        print("Picked the package")
-        aruco=2
+        if aruco_package==1:
+            print("Reducing the altitude to pick the package")
+            send_global_velocity(0,0,1,2)
+            time.sleep(10)
+            onElectromagnet()
+            print("Picked the package")
+            aruco_package=2
+        if aruco_dropzone==1:
+            print("Reducing the altitude to drop the package")
+            send_global_velocity(0,0,1,2)
+            time.sleep(10)
+            offElectromagnet()
+            print("droped the package")
+            aruco_dropzone=2
+
     if color==1:
         print("color detected")
         print(x_distance,",",y_distance)
@@ -254,19 +267,18 @@ def Calculate():
             detectColor()
             print(x_distance,",",y_distance)
             time.sleep(1)
-        print("Reached the aruco marker")
+        print("Reached the color")
         print("Reducing the altitude to pick the package")
         send_global_velocity(0,0,1,2)
         time.sleep(10)
+        onElectromagnet()
         print("Picked the package")
-        aruco=2
+        color=2
     
-
-
 
 def Check():
     print("Entered check function")
-    global aruco,x_distance,y_distance,actual_centers_dist,angle
+    global aruco_package,aruco_dropzone,x_distance,y_distance,actual_centers_dist,angle
     d=0
     y=1
     de=5
@@ -276,7 +288,7 @@ def Check():
     DetectAruco()
     y=-2
     while d<3:
-        if aruco==1:
+        if aruco_package==1:
             Calculate()
             break
         else:
