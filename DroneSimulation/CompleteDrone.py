@@ -31,9 +31,11 @@ capture = cv.VideoCapture(1)
 
 #(h, w) = frame.shape[:2]
 
-(h,w) = (480,640)
+(hf,wf) = (480,640)
 
-i=0    #checks if marker is detected or not
+aruco_package=0    #checks if marker is detected or not
+aruco_dropzone=0
+color=0
 x_distance=0
 y_distance=0
 aruco_centers_dist=0
@@ -88,17 +90,17 @@ def send_global_velocity(velocity_x, velocity_y, velocity_z, duration):
 
 
 def DisplayFrame():
-    global i,x_distance,y_distance,actual_centers_dist,angle,h,w  
+    global aruco_package,aruco_dropzone,color,x_distance,y_distance,actual_centers_dist,angle,hf,wf
     while True:
         ret,frame = capture.read()
-        cv.circle(frame, (w//2, h//2), 5, (0, 0, 255), -1)
+        cv.circle(frame, (wf//2, hf//2), 5, (0, 0, 255), -1)
         if not ret:
             break
         gray_frame = cv.cvtColor(frame,cv.COLOR_BGR2GRAY)
         marker_corners,marker_IDs,reject = aruco.detectMarkers(
             gray_frame,marker_dict,parameters=param_markers
         )
-        if marker_corners and i!=3:
+        if marker_corners and aruco!=3:
             for corners in marker_corners:
                 corners=corners.reshape(4,2)
                 aruco_center = ((corners[0][0] + corners[2][0])//2, (corners[0][1] + corners[2][1])//2)
@@ -109,26 +111,26 @@ def DisplayFrame():
                 cv.circle(frame, (int(corners[3][0]), int(corners[3][1])), 5, (255, 255, 255), -1)
         cv.imshow("frame",frame)
         key = cv.waitKey(1)
-        if key==ord("q") or i==2:
+        if key==ord("q") or aruco_package==2:
             break
     
 
 
 def DetectAruco():
-    global i,x_distance,y_distance,actual_centers_dist,angle,h,w
+    global aruco_package,aruco_dropzone,x_distance,y_distance,actual_centers_dist,angle,hf,wf
     startTime=time.time()
     while True:
         ret,frame = capture.read()
-        frame_centre = ((w//2,h//2))
-        cv.circle(frame, (w//2, h//2), 5, (0, 0, 255), -1)
+        frame_centre = ((wf//2,hf//2))
+        cv.circle(frame, (wf//2, hf//2), 5, (0, 0, 255), -1)
         if not ret:
             break
         gray_frame = cv.cvtColor(frame,cv.COLOR_BGR2GRAY)
         marker_corners,marker_IDs,reject = aruco.detectMarkers(
             gray_frame,marker_dict,parameters=param_markers
         )
-        if marker_corners and i!=3:
-            for corners in marker_corners:
+        if marker_corners:
+            for ids,corners in zip(marker_IDs,marker_corners):
                 corners=corners.reshape(4,2)
                 aruco_center = ((corners[0][0] + corners[2][0])//2, (corners[0][1] + corners[2][1])//2)
                 cv.circle(frame, (int(aruco_center[0]), int(aruco_center[1])), 5, (0, 255, 0),-1)
@@ -141,7 +143,10 @@ def DetectAruco():
                 actual_centers_dist = 0.0762* (centers_dist/old_pixel_dist)  # 3 inches = 0.076 meters
                 x_distance = 0.0762*(abs(aruco_center[0]-frame_centre[0])/old_pixel_dist)
                 y_distance = 0.0762*(abs(aruco_center[1]-frame_centre[1])/old_pixel_dist)
-            i=1
+                if ids==0:
+                    aruco_package=1
+                elif ids==1:
+                    aruco_dropzone=1
             print("Aruco marker detected")
             break
         endTime=time.time()
@@ -155,19 +160,55 @@ def DetectAruco():
 
 
 def detectColor(){
-    global i,x_distance,y_distance,actual_centers_dist,angle,h,w
+    global color,x_distance,y_distance,actual_centers_dist,angle,hf,wf
     startTime=time.time()
     while True:
         ret,frame=capture.read()
-        frame_centre = ((w//2,h//2))
+        frame_centre = ((wf//2,hf//2))
         if not ret:
             break
+            #converting the frame to hsv format
+        hsv_frame =cv2.cvtColor(frame,cv2.COLOR_BGR2HSV)
+
+        #defining the hsv of the color to be detected
+        #for purple color
+        lower = np.array([129, 50, 70])
+        upper = np.array([158, 255, 255])
+        
+        
+        mask = cv2.inRange(hsv_frame, lower, upper)
+        
+        #Making the background of detected color as black. If no color is detected whole frame is black
+        result = cv2.bitwise_and(frame, frame, mask=mask)
+
+        #finding the borders of the detected color
+        contours,ret=cv2.findContours(mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE)
+
+        for c in contours:
+            area=cv2.contourArea(c)
+            peri=cv2.arcLength(c,True)
+            approx=cv2.approxPolyDP(c,peri*0.02,True)
+
+            if len(approx) == 4 and area>300:
+
+                cv2.drawContours(frame, [approx], -1, (0, 0, 255), 3)
+
+                x,y,w,h=cv2.boundingRect(c)
+                img_center=(x+(w/2),y+(h/2))
+                cv2.circle(frame, (int(img_center[0]),int(img_center[1])), 5, (0, 0, 255),-1)
+                cv2.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)
+                centers_dist = math.sqrt(((img_center[0]- frame_centre[0]) ** 2) + ((img_center[1] - frame_centre[1]) ** 2))
+                if w>0:
+                    actual_centers_dist = 0.076* (centers_dist/w)  # 3 inches = 0.076 meters
+                    x_distance = 0.0762*(abs(img_center[0]-frame_centre[0])/centers_dist)
+                    y_distance = 0.0762*(abs(img_center[1]-frame_centre[1])/centers_dist)
+                    color=1
 }
 
 def Calculate():
     print("Entered calculate function")
-    global i,x_distance,y_distance,actual_centers_dist,angle
-    if i==1:
+    global aruco,color,x_distance,y_distance,actual_centers_dist,angle
+    if aruco==1:
         print("Marker detected")
         print(x_distance,",",y_distance)
         dur = 5
@@ -186,12 +227,34 @@ def Calculate():
         send_global_velocity(0,0,1,2)
         time.sleep(10)
         print("Picked the package")
-        i=2
+        aruco=2
+    if color==1:
+        print("color detected")
+        print(x_distance,",",y_distance)
+        dur = 5
+        print(dur)
+        while x_distance>0.05 or y_distance>0.05:
+            print("Moving towards the marker")
+            send_global_velocity(x_distance,y_distance,0,dur)
+            time.sleep(5)
+            print("Moved in the direction of detected till 5 seconds")
+            print("Checking for the color again")
+            detectColor()
+            print(x_distance,",",y_distance)
+            time.sleep(1)
+        print("Reached the aruco marker")
+        print("Reducing the altitude to pick the package")
+        send_global_velocity(0,0,1,2)
+        time.sleep(10)
+        print("Picked the package")
+        aruco=2
+    
+
 
 
 def Check():
     print("Entered check function")
-    global i,x_distance,y_distance,actual_centers_dist,angle
+    global aruco,x_distance,y_distance,actual_centers_dist,angle
     d=0
     y=1
     de=5
@@ -201,7 +264,7 @@ def Check():
     DetectAruco()
     y=-2
     while d<3:
-        if i==1:
+        if aruco==1:
             Calculate()
             break
         else:
@@ -209,7 +272,7 @@ def Check():
             print("Moved in y axis")
             print("Checking for aruco marker")
             DetectAruco()
-            if i==1:
+            if aruco==1:
                 Calculate()
                 break
             d=d+1
