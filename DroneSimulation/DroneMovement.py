@@ -131,11 +131,6 @@ def DetectAruco():
             for corners in marker_corners:
                 corners=corners.reshape(4,2)
                 aruco_center = ((corners[0][0] + corners[2][0])//2, (corners[0][1] + corners[2][1])//2)
-                cv.circle(frame, (int(aruco_center[0]), int(aruco_center[1])), 5, (0, 255, 0),-1)
-                cv.circle(frame, (int(corners[0][0]), int(corners[0][1])), 5, (0, 0, 255),-1)
-                cv.circle(frame, (int(corners[1][0]), int(corners[1][1])), 5, (0, 255, 0),-1)
-                cv.circle(frame, (int(corners[2][0]), int(corners[2][1])), 5, (255, 0, 0), -1)
-                cv.circle(frame, (int(corners[3][0]), int(corners[3][1])), 5, (255, 255, 255), -1)
                 old_pixel_dist = math.sqrt(((corners[0][0] - corners[1][0]) ** 2 + (corners[0][1] - corners[1][1]) ** 2))
                 centers_dist = math.sqrt(((aruco_center[0]- frame_centre[0]) ** 2) + ((aruco_center[1] - frame_centre[1]) ** 2))
                 actual_centers_dist = 0.0762* (centers_dist/old_pixel_dist)  # 3 inches = 0.076 meters
