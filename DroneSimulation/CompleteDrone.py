@@ -203,6 +203,18 @@ def detectColor(){
                     x_distance = 0.0762*(abs(img_center[0]-frame_centre[0])/centers_dist)
                     y_distance = 0.0762*(abs(img_center[1]-frame_centre[1])/centers_dist)
                     color=1
+                    
+        if color==1:
+            print("Color detected")
+            break
+        endTime=time.time()
+        if(endTime-startTime > 20):
+            print("Time limit Exceeded. No color detected")
+            break
+        cv.imshow("frame",frame)
+        key = cv.waitKey(1)
+        if key==ord("q"):
+            break
 }
 
 def Calculate():
