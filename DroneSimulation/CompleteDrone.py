@@ -10,11 +10,11 @@ from cv2 import aruco
 import numpy as np
 import math
 
-import RPi.GPIO as GPIO 
+# import RPi.GPIO as GPIO 
 
-relay=26 #GPIO pin connected from relay to rpi
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(relay,GPIO.OUT)
+# relay=26 #GPIO pin connected from relay to rpi
+# GPIO.setmode(GPIO.BCM)
+# GPIO.setup(relay,GPIO.OUT)
 
 #-- Connect to vehicle
 import argparse
@@ -120,6 +120,38 @@ def DisplayFrame():
                 cv.circle(frame, (int(corners[1][0]), int(corners[1][1])), 5, (0, 255, 0),-1)
                 cv.circle(frame, (int(corners[2][0]), int(corners[2][1])), 5, (255, 0, 0), -1)
                 cv.circle(frame, (int(corners[3][0]), int(corners[3][1])), 5, (255, 255, 255), -1)
+        
+
+        #for displaying color
+        hsv_frame =cv.cvtColor(frame,cv.COLOR_BGR2HSV)
+
+        #defining the hsv of the color to be detected
+        #for purple color
+        lower = np.array([129, 50, 70])
+        upper = np.array([158, 255, 255])
+        
+        
+        mask = cv.inRange(hsv_frame, lower, upper)
+        
+        #Making the background of detected color as black. If no color is detected whole frame is black
+        result = cv.bitwise_and(frame, frame, mask=mask)
+
+        #finding the borders of the detected color
+        contours,ret=cv.findContours(mask,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_NONE)
+
+        for c in contours:
+            area=cv.contourArea(c)
+            peri=cv.arcLength(c,True)
+            approx=cv.approxPolyDP(c,peri*0.02,True)
+
+            if len(approx) == 4 and area>500:
+
+                cv.drawContours(frame, [approx], -1, (0, 0, 255), 3)
+
+                x,y,w,h=cv.boundingRect(c)
+                img_center=(x+(w/2),y+(h/2))
+                cv.circle(frame, (int(img_center[0]),int(img_center[1])), 5, (0, 0, 255),-1)
+                cv.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)
         cv.imshow("frame",frame)
         key = cv.waitKey(1)
         if key==ord("q") or (package1==1 and package2==1):
@@ -154,12 +186,16 @@ def DetectAruco():
                 actual_centers_dist = 0.0762* (centers_dist/old_pixel_dist)  # 3 inches = 0.076 meters
                 x_distance = 0.0762*(abs(aruco_center[0]-frame_centre[0])/old_pixel_dist)
                 y_distance = 0.0762*(abs(aruco_center[1]-frame_centre[1])/old_pixel_dist)
-                if ids==packageMarkerID and package1==0:
+                if ids==packageMarkerID and aruco_package==0:
                     aruco_package=1
                 elif ids==dropzoneMarkerID:
                     aruco_dropzone=1
-            print("Aruco marker detected")
-            break
+            if aruco_package==1:
+                print("Aruco marker of package detected")
+                break
+            elif aruco_dropzone==1:
+                print("Aruco marker of dropzone detected")
+                break
         endTime=time.time()
         if(endTime-startTime > 20):
             print("Time limit Exceeded. No marker detected")
@@ -170,7 +206,7 @@ def DetectAruco():
             break
 
 
-def detectColor(){
+def detectColor():
     global color,x_distance,y_distance,actual_centers_dist,angle,hf,wf
     startTime=time.time()
     while True:
@@ -179,7 +215,7 @@ def detectColor(){
         if not ret:
             break
             #converting the frame to hsv format
-        hsv_frame =cv2.cvtColor(frame,cv2.COLOR_BGR2HSV)
+        hsv_frame =cv.cvtColor(frame,cv.COLOR_BGR2HSV)
 
         #defining the hsv of the color to be detected
         #for purple color
@@ -187,27 +223,27 @@ def detectColor(){
         upper = np.array([158, 255, 255])
         
         
-        mask = cv2.inRange(hsv_frame, lower, upper)
+        mask = cv.inRange(hsv_frame, lower, upper)
         
         #Making the background of detected color as black. If no color is detected whole frame is black
-        result = cv2.bitwise_and(frame, frame, mask=mask)
+        result = cv.bitwise_and(frame, frame, mask=mask)
 
         #finding the borders of the detected color
-        contours,ret=cv2.findContours(mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE)
+        contours,ret=cv.findContours(mask,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_NONE)
 
         for c in contours:
-            area=cv2.contourArea(c)
-            peri=cv2.arcLength(c,True)
-            approx=cv2.approxPolyDP(c,peri*0.02,True)
+            area=cv.contourArea(c)
+            peri=cv.arcLength(c,True)
+            approx=cv.approxPolyDP(c,peri*0.02,True)
 
-            if len(approx) == 4 and area>300:
+            if len(approx) == 4 and area>500:
 
-                cv2.drawContours(frame, [approx], -1, (0, 0, 255), 3)
+                cv.drawContours(frame, [approx], -1, (0, 0, 255), 3)
 
-                x,y,w,h=cv2.boundingRect(c)
+                x,y,w,h=cv.boundingRect(c)
                 img_center=(x+(w/2),y+(h/2))
-                cv2.circle(frame, (int(img_center[0]),int(img_center[1])), 5, (0, 0, 255),-1)
-                cv2.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)
+                cv.circle(frame, (int(img_center[0]),int(img_center[1])), 5, (0, 0, 255),-1)
+                cv.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)
                 centers_dist = math.sqrt(((img_center[0]- frame_centre[0]) ** 2) + ((img_center[1] - frame_centre[1]) ** 2))
                 if w>0:
                     actual_centers_dist = 0.076* (centers_dist/w)  # 3 inches = 0.076 meters
@@ -226,11 +262,11 @@ def detectColor(){
         key = cv.waitKey(1)
         if key==ord("q"):
             break
-}
+
 
 def Calculate():
     print("Entered calculate function")
-    global aruco_dropzone,aruco_dropzone,color,x_distance,y_distance,actual_centers_dist,angle
+    global aruco_dropzone,aruco_dropzone,color,x_distance,y_distance,actual_centers_dist,angle,aruco_package,aruco_dropzone
     if aruco_package==1 or aruco_dropzone==1:
         if aruco_package==1:
             print("Marker detected")
@@ -239,7 +275,11 @@ def Calculate():
         print(x_distance,",",y_distance)
         dur = 5
         print(dur)
+        count=0
         while x_distance>0.05 or y_distance>0.05:
+            if count>7:
+                print("Count Exceeded")
+                break
             print("Moving towards the marker")
             send_global_velocity(x_distance,y_distance,0,dur)
             time.sleep(5)
@@ -248,6 +288,7 @@ def Calculate():
             DetectAruco()
             print(x_distance,",",y_distance)
             time.sleep(1)
+            count=count+1
         print("Reached the aruco marker")
         if aruco_package==1:
             print("Reducing the altitude to pick the package")
@@ -255,6 +296,10 @@ def Calculate():
             time.sleep(10)
             onElectromagnet()
             print("Picked the package")
+            time.sleep(2)
+            print("Increasing the altitude")
+            send_global_velocity(0,0,-1,2)
+            time.sleep(10)
             aruco_package=2
         if aruco_dropzone==1:
             print("Reducing the altitude to drop the package")
@@ -262,15 +307,22 @@ def Calculate():
             time.sleep(10)
             offElectromagnet()
             print("droped the package")
+            time.sleep(2)
+            print("Increasing the altitude")
+            send_global_velocity(0,0,-1,2)
+            time.sleep(10)
             aruco_dropzone=0
-            package1=1
 
+    count=0
     if color==1:
         print("color detected")
         print(x_distance,",",y_distance)
         dur = 5
         print(dur)
         while x_distance>0.05 or y_distance>0.05:
+            if count<7:
+                print("Count Exceeded")
+                break
             print("Moving towards the marker")
             send_global_velocity(x_distance,y_distance,0,dur)
             time.sleep(5)
@@ -285,15 +337,21 @@ def Calculate():
         time.sleep(10)
         onElectromagnet()
         print("Picked the package")
+        time.sleep(2)
+        print("Increasing the altitude")
+        send_global_velocity(0,0,-1,2)
+        time.sleep(10)
         color=2
 
 def onElectromagnet():
-    global relay
-    GPIO.output(relay,GPIO.HIGH)
+    # global relay
+    # GPIO.output(relay,GPIO.HIGH)
+    print("Electomagnet turned on")
 
 def offElectromagnet():
-    global relay
-    GPIO.output(relay,GPIO.LOW)
+    # global relay
+    # GPIO.output(relay,GPIO.LOW)
+    print("Electomagnet turned on")
 
 
 def Check():
@@ -353,10 +411,22 @@ def Check():
 def move():
     global package1,package2
     Check()
+    print("")
+    print("******************************************")
+    print("")
     Check()
     package1=1
+    print("")
+    print("******************************************")
+    print("")
     Check()
+    print("")
+    print("******************************************")
+    print("")
     Check()
+    print("")
+    print("******************************************")
+    print("")
     package2=1
 
 
