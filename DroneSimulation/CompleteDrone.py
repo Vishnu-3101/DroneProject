@@ -33,7 +33,7 @@ marker_dict = aruco.Dictionary_get(aruco.DICT_4X4_250)
 
 param_markers = aruco.DetectorParameters_create()
 
-capture = cv.VideoCapture(1)
+capture = cv.VideoCapture(0)
 
 #(h, w) = frame.shape[:2]
 
@@ -46,6 +46,10 @@ x_distance=0
 y_distance=0
 aruco_centers_dist=0
 package1=0
+package2=0
+
+packageMarkerID = 0
+dropzoneMarkerID =1
 
 def arm_and_takeoff(aTargetAltitude):
     print("Arming motors")
@@ -97,7 +101,7 @@ def send_global_velocity(velocity_x, velocity_y, velocity_z, duration):
 
 
 def DisplayFrame():
-    global aruco_package,aruco_dropzone,color,x_distance,y_distance,actual_centers_dist,angle,hf,wf
+    global aruco_package,aruco_dropzone,color,x_distance,y_distance,actual_centers_dist,angle,hf,wf,package1,package2
     while True:
         ret,frame = capture.read()
         cv.circle(frame, (wf//2, hf//2), 5, (0, 0, 255), -1)
@@ -107,7 +111,7 @@ def DisplayFrame():
         marker_corners,marker_IDs,reject = aruco.detectMarkers(
             gray_frame,marker_dict,parameters=param_markers
         )
-        if marker_corners and aruco!=3:
+        if marker_corners:
             for corners in marker_corners:
                 corners=corners.reshape(4,2)
                 aruco_center = ((corners[0][0] + corners[2][0])//2, (corners[0][1] + corners[2][1])//2)
@@ -118,7 +122,7 @@ def DisplayFrame():
                 cv.circle(frame, (int(corners[3][0]), int(corners[3][1])), 5, (255, 255, 255), -1)
         cv.imshow("frame",frame)
         key = cv.waitKey(1)
-        if key==ord("q") or aruco_package==2:
+        if key==ord("q") or (package1==1 and package2==1):
             break
     
 
@@ -150,9 +154,9 @@ def DetectAruco():
                 actual_centers_dist = 0.0762* (centers_dist/old_pixel_dist)  # 3 inches = 0.076 meters
                 x_distance = 0.0762*(abs(aruco_center[0]-frame_centre[0])/old_pixel_dist)
                 y_distance = 0.0762*(abs(aruco_center[1]-frame_centre[1])/old_pixel_dist)
-                if ids==0 and aruco_package==0:
+                if ids==packageMarkerID and package1==0:
                     aruco_package=1
-                elif ids==1:
+                elif ids==dropzoneMarkerID:
                     aruco_dropzone=1
             print("Aruco marker detected")
             break
@@ -259,6 +263,7 @@ def Calculate():
             offElectromagnet()
             print("droped the package")
             aruco_dropzone=0
+            package1=1
 
     if color==1:
         print("color detected")
@@ -346,10 +351,13 @@ def Check():
                 y=-2
          
 def move():
+    global package1,package2
     Check()
     Check()
+    package1=1
     Check()
     Check()
+    package2=1
 
 
 
