@@ -10,6 +10,12 @@ from cv2 import aruco
 import numpy as np
 import math
 
+import RPi.GPIO as GPIO 
+
+relay=26 #GPIO pin connected from relay to rpi
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(relay,GPIO.OUT)
+
 #-- Connect to vehicle
 import argparse
 parser = argparse.ArgumentParser(description='commands')
@@ -39,6 +45,7 @@ color=0
 x_distance=0
 y_distance=0
 aruco_centers_dist=0
+package1=0
 
 def arm_and_takeoff(aTargetAltitude):
     print("Arming motors")
@@ -143,7 +150,7 @@ def DetectAruco():
                 actual_centers_dist = 0.0762* (centers_dist/old_pixel_dist)  # 3 inches = 0.076 meters
                 x_distance = 0.0762*(abs(aruco_center[0]-frame_centre[0])/old_pixel_dist)
                 y_distance = 0.0762*(abs(aruco_center[1]-frame_centre[1])/old_pixel_dist)
-                if ids==0:
+                if ids==0 and aruco_package==0:
                     aruco_package=1
                 elif ids==1:
                     aruco_dropzone=1
@@ -251,7 +258,7 @@ def Calculate():
             time.sleep(10)
             offElectromagnet()
             print("droped the package")
-            aruco_dropzone=2
+            aruco_dropzone=0
 
     if color==1:
         print("color detected")
@@ -274,41 +281,76 @@ def Calculate():
         onElectromagnet()
         print("Picked the package")
         color=2
-    
+
+def onElectromagnet():
+    global relay
+    GPIO.output(relay,GPIO.HIGH)
+
+def offElectromagnet():
+    global relay
+    GPIO.output(relay,GPIO.LOW)
+
 
 def Check():
     print("Entered check function")
-    global aruco_package,aruco_dropzone,x_distance,y_distance,actual_centers_dist,angle
+    global aruco_package,aruco_dropzone,x_distance,y_distance,actual_centers_dist,angle,package1
     d=0
     y=1
     de=5
     send_global_velocity(0,y,0,de)
     print("Moved in y axis")
-    print("Checking for aruco marker")
-    DetectAruco()
+    if aruco_package==0 and package1==0:
+        print("Checking for aruco marker package")
+        DetectAruco()
+    elif color==0 and package1==1:
+        print("Checking for color package")
+        detectColor()
+    elif aruco_dropzone==0:
+        print("Checking for dropzone package")
+        DetectAruco() 
     y=-2
     while d<3:
-        if aruco_package==1:
+        if aruco_package==1 or aruco_dropzone==1 or color==1:
             Calculate()
             break
         else:
             send_global_velocity(0,y, 0, de)
             print("Moved in y axis")
-            print("Checking for aruco marker")
-            DetectAruco()
-            if aruco==1:
+            if aruco_package==0 and package1==0:
+                print("Checking for aruco marker package")
+                DetectAruco()
+            elif color==0 and package1==1:
+                print("Checking for color package")
+                detectColor()
+            elif aruco_dropzone==0:
+                print("Checking for dropzone package")
+                DetectAruco()
+            if aruco_package==1 or aruco_dropzone==1 or color==1:
                 Calculate()
                 break
             d=d+1
             send_global_velocity(1,0,0,de)
             print("Moved in x axis")
-            print("Checking for aruco marker")
-            DetectAruco()
+            if aruco_package==0 and package1==0:
+                print("Checking for aruco marker package")
+                DetectAruco()
+            elif color==0 and package1==1:
+                print("Checking for color package")
+                detectColor()
+            elif aruco_dropzone==0:
+                print("Checking for dropzone package")
+                DetectAruco()
             if(d==1):
                 y=2
             else:
                 y=-2
          
+def move():
+    Check()
+    Check()
+    Check()
+    Check()
+
 
 
 arm_and_takeoff(5)
@@ -316,7 +358,7 @@ arm_and_takeoff(5)
 
 
 t1=threading.Thread(target = DisplayFrame)
-t2=threading.Thread(target = Check)
+t2=threading.Thread(target = move)
 
 t2.start()
 t1.start()
