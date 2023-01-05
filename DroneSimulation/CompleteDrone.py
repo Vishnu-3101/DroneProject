@@ -98,72 +98,22 @@ def send_global_velocity(velocity_x, velocity_y, velocity_z, duration):
         vehicle.send_mavlink(msg)
         time.sleep(1)
 
+def onElectromagnet():
+    # global relay
+    # GPIO.output(relay,GPIO.HIGH)
+    print("Electomagnet turned on")
 
-
-def DisplayFrame():
-    global aruco_package,aruco_dropzone,color,x_distance,y_distance,actual_centers_dist,angle,hf,wf,package1,package2
-    while True:
-        ret,frame = capture.read()
-        cv.circle(frame, (wf//2, hf//2), 5, (0, 0, 255), -1)
-        if not ret:
-            break
-        gray_frame = cv.cvtColor(frame,cv.COLOR_BGR2GRAY)
-        marker_corners,marker_IDs,reject = aruco.detectMarkers(
-            gray_frame,marker_dict,parameters=param_markers
-        )
-        if marker_corners:
-            for corners in marker_corners:
-                corners=corners.reshape(4,2)
-                aruco_center = ((corners[0][0] + corners[2][0])//2, (corners[0][1] + corners[2][1])//2)
-                cv.circle(frame, (int(aruco_center[0]), int(aruco_center[1])), 5, (0, 255, 0),-1)
-                cv.circle(frame, (int(corners[0][0]), int(corners[0][1])), 5, (0, 0, 255),-1)
-                cv.circle(frame, (int(corners[1][0]), int(corners[1][1])), 5, (0, 255, 0),-1)
-                cv.circle(frame, (int(corners[2][0]), int(corners[2][1])), 5, (255, 0, 0), -1)
-                cv.circle(frame, (int(corners[3][0]), int(corners[3][1])), 5, (255, 255, 255), -1)
-        
-
-        #for displaying color
-        hsv_frame =cv.cvtColor(frame,cv.COLOR_BGR2HSV)
-
-        #defining the hsv of the color to be detected
-        #for purple color
-        lower = np.array([129, 50, 70])
-        upper = np.array([158, 255, 255])
-        
-        
-        mask = cv.inRange(hsv_frame, lower, upper)
-        
-        #Making the background of detected color as black. If no color is detected whole frame is black
-        result = cv.bitwise_and(frame, frame, mask=mask)
-
-        #finding the borders of the detected color
-        contours,ret=cv.findContours(mask,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_NONE)
-
-        for c in contours:
-            area=cv.contourArea(c)
-            peri=cv.arcLength(c,True)
-            approx=cv.approxPolyDP(c,peri*0.02,True)
-
-            if len(approx) == 4 and area>500:
-
-                cv.drawContours(frame, [approx], -1, (0, 0, 255), 3)
-
-                x,y,w,h=cv.boundingRect(c)
-                img_center=(x+(w/2),y+(h/2))
-                cv.circle(frame, (int(img_center[0]),int(img_center[1])), 5, (0, 0, 255),-1)
-                cv.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)
-        cv.imshow("frame",frame)
-        key = cv.waitKey(1)
-        if key==ord("q") or (package1==1 and package2==1):
-            break
-    
-
+def offElectromagnet():
+    # global relay
+    # GPIO.output(relay,GPIO.LOW)
+    print("Electomagnet turned on")
 
 def DetectAruco():
     global aruco_package,aruco_dropzone,x_distance,y_distance,actual_centers_dist,angle,hf,wf
     startTime=time.time()
     while True:
         ret,frame = capture.read()
+        (hf,wf) = (480,640)
         frame_centre = ((wf//2,hf//2))
         cv.circle(frame, (wf//2, hf//2), 5, (0, 0, 255), -1)
         if not ret:
@@ -183,9 +133,9 @@ def DetectAruco():
                 cv.circle(frame, (int(corners[3][0]), int(corners[3][1])), 5, (255, 255, 255), -1)
                 old_pixel_dist = math.sqrt(((corners[0][0] - corners[1][0]) ** 2 + (corners[0][1] - corners[1][1]) ** 2))
                 centers_dist = math.sqrt(((aruco_center[0]- frame_centre[0]) ** 2) + ((aruco_center[1] - frame_centre[1]) ** 2))
-                actual_centers_dist = 0.0762* (centers_dist/old_pixel_dist)  # 3 inches = 0.076 meters
-                x_distance = 0.0762*(abs(aruco_center[0]-frame_centre[0])/old_pixel_dist)
-                y_distance = 0.0762*(abs(aruco_center[1]-frame_centre[1])/old_pixel_dist)
+                actual_centers_dist = 7.62* (centers_dist/old_pixel_dist)  # 3 inches = 0.076 meters = 7.6 cm
+                
+                angle = np.arctan(x_distance/y_distance)
                 if ids==packageMarkerID and aruco_package==0:
                     aruco_package=1
                 elif ids==dropzoneMarkerID:
@@ -267,28 +217,40 @@ def detectColor():
 def Calculate():
     print("Entered calculate function")
     global aruco_dropzone,aruco_dropzone,color,x_distance,y_distance,actual_centers_dist,angle,aruco_package,aruco_dropzone
+
+    velocity=5
+    velocity_x = velocity*math.cos(angle)
+    velocity_y = velocity*math.sin(angle)
+    dur =1
+    print("Duration is:",dur)
+    k=0.03
+
     if aruco_package==1 or aruco_dropzone==1:
         if aruco_package==1:
             print("Marker detected")
         if aruco_package==1:
             print("Dropzone detected")
-        print(x_distance,",",y_distance)
-        dur = 5
-        print(dur)
-        count=0
-        while x_distance>0.05 or y_distance>0.05:
+        print("actual centers distance is: ",actual_centers_dist)
+        print("Angle made:",angle)
+        count=0        
+      
+        while actual_centers_dist>0.05:
             if count>7:
                 print("Count Exceeded")
                 break
             print("Moving towards the marker")
-            send_global_velocity(x_distance,y_distance,0,dur)
-            time.sleep(5)
-            print("Moved in the direction of Aruco Marker till 5 seconds")
+            send_global_velocity(velocity_x,velocity_y,0,dur)
+            #time.sleep(5)
+            print("Moved in the direction of Aruco Marker")
             print("Checking for the aruco marker again")
             DetectAruco()
-            print(x_distance,",",y_distance)
-            time.sleep(1)
+            print("actual centers distance is: ",actual_centers_dist)
+            print("Angle made:",angle)
             count=count+1
+            velocity = velocity - k*actual_centers_dist
+            velocity_x = velocity*math.cos(angle)
+            velocity_y = velocity*math.sin(angle)
+            print("velocity is:",velocity)
         print("Reached the aruco marker")
         if aruco_package==1:
             print("Reducing the altitude to pick the package")
@@ -316,21 +278,25 @@ def Calculate():
     count=0
     if color==1:
         print("color detected")
-        print(x_distance,",",y_distance)
-        dur = 5
-        print(dur)
-        while x_distance>0.05 or y_distance>0.05:
+        print("actual centers distance is: ",actual_centers_dist)
+        print("Duration is:",dur)
+        while actual_centers_dist>0.05:
             if count<7:
                 print("Count Exceeded")
                 break
             print("Moving towards the marker")
-            send_global_velocity(x_distance,y_distance,0,dur)
-            time.sleep(5)
-            print("Moved in the direction of detected till 5 seconds")
+            send_global_velocity(velocity_x,velocity_y,0,dur)
+            #time.sleep(5)
+            print("Moved in the direction of detected color")
             print("Checking for the color again")
             detectColor()
-            print(x_distance,",",y_distance)
-            time.sleep(1)
+            print("actual centers distance is: ",actual_centers_dist)
+            print("Angle made:",angle)
+            count=count+1
+            velocity = velocity - k*actual_centers_dist
+            velocity_x = velocity*math.cos(angle)
+            velocity_y = velocity*math.sin(angle)
+            print("velocity is:",velocity)
         print("Reached the color")
         print("Reducing the altitude to pick the package")
         send_global_velocity(0,0,1,2)
@@ -343,24 +309,12 @@ def Calculate():
         time.sleep(10)
         color=2
 
-def onElectromagnet():
-    # global relay
-    # GPIO.output(relay,GPIO.HIGH)
-    print("Electomagnet turned on")
-
-def offElectromagnet():
-    # global relay
-    # GPIO.output(relay,GPIO.LOW)
-    print("Electomagnet turned on")
-
 
 def Check():
     print("Entered check function")
     global aruco_package,aruco_dropzone,x_distance,y_distance,actual_centers_dist,angle,package1
     d=0
-    y=1
     de=5
-    send_global_velocity(0,y,0,de)
     print("Moved in y axis")
     if aruco_package==0 and package1==0:
         print("Checking for aruco marker package")
@@ -372,6 +326,7 @@ def Check():
         print("Checking for dropzone package")
         DetectAruco() 
     y=-2
+    send_global_velocity(1,0,0,de)
     while d<3:
         if aruco_package==1 or aruco_dropzone==1 or color==1:
             Calculate()
@@ -392,6 +347,12 @@ def Check():
                 Calculate()
                 break
             d=d+1
+            if aruco_package==2 or color==2:
+                send_global_velocity(-1,0,0,de)
+                print("Dropzone detected")
+            else:
+                send_global_velocity(1,0,0,de)
+                print("Dropzone not detected")
             send_global_velocity(1,0,0,de)
             print("Moved in x axis")
             if aruco_package==0 and package1==0:
@@ -407,6 +368,7 @@ def Check():
                 y=2
             else:
                 y=-2
+
          
 def move():
     global package1,package2
