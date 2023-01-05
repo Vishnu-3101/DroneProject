@@ -106,7 +106,66 @@ def onElectromagnet():
 def offElectromagnet():
     # global relay
     # GPIO.output(relay,GPIO.LOW)
-    print("Electomagnet turned on")
+    print("Electomagnet turned off")
+
+
+def DisplayFrame():
+    global aruco_package,aruco_dropzone,color,x_distance,y_distance,actual_centers_dist,angle,hf,wf,package1,package2
+    while True:
+        ret,frame = capture.read()
+        cv.circle(frame, (wf//2, hf//2), 5, (0, 0, 255), -1)
+        if not ret:
+            break
+        gray_frame = cv.cvtColor(frame,cv.COLOR_BGR2GRAY)
+        marker_corners,marker_IDs,reject = aruco.detectMarkers(
+            gray_frame,marker_dict,parameters=param_markers
+        )
+        if marker_corners:
+            for corners in marker_corners:
+                corners=corners.reshape(4,2)
+                aruco_center = ((corners[0][0] + corners[2][0])//2, (corners[0][1] + corners[2][1])//2)
+                cv.circle(frame, (int(aruco_center[0]), int(aruco_center[1])), 5, (0, 255, 0),-1)
+                cv.circle(frame, (int(corners[0][0]), int(corners[0][1])), 5, (0, 0, 255),-1)
+                cv.circle(frame, (int(corners[1][0]), int(corners[1][1])), 5, (0, 255, 0),-1)
+                cv.circle(frame, (int(corners[2][0]), int(corners[2][1])), 5, (255, 0, 0), -1)
+                cv.circle(frame, (int(corners[3][0]), int(corners[3][1])), 5, (255, 255, 255), -1)
+        
+
+        #for displaying color
+        hsv_frame =cv.cvtColor(frame,cv.COLOR_BGR2HSV)
+
+        #defining the hsv of the color to be detected
+        #for purple color
+        lower = np.array([129, 50, 70])
+        upper = np.array([158, 255, 255])
+        
+        
+        mask = cv.inRange(hsv_frame, lower, upper)
+        
+        #Making the background of detected color as black. If no color is detected whole frame is black
+        result = cv.bitwise_and(frame, frame, mask=mask)
+
+        #finding the borders of the detected color
+        contours,ret=cv.findContours(mask,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_NONE)
+
+        for c in contours:
+            area=cv.contourArea(c)
+            peri=cv.arcLength(c,True)
+            approx=cv.approxPolyDP(c,peri*0.02,True)
+
+            if len(approx) == 4 and area>500:
+
+                cv.drawContours(frame, [approx], -1, (0, 0, 255), 3)
+
+                x,y,w,h=cv.boundingRect(c)
+                img_center=(x+(w/2),y+(h/2))
+                cv.circle(frame, (int(img_center[0]),int(img_center[1])), 5, (0, 0, 255),-1)
+                cv.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)
+        cv.imshow("frame",frame)
+        key = cv.waitKey(1)
+        if key==ord("q") or (package1==1 and package2==1):
+            break
+
 
 def DetectAruco():
     global aruco_package,aruco_dropzone,x_distance,y_distance,actual_centers_dist,angle,hf,wf
@@ -134,8 +193,9 @@ def DetectAruco():
                 old_pixel_dist = math.sqrt(((corners[0][0] - corners[1][0]) ** 2 + (corners[0][1] - corners[1][1]) ** 2))
                 centers_dist = math.sqrt(((aruco_center[0]- frame_centre[0]) ** 2) + ((aruco_center[1] - frame_centre[1]) ** 2))
                 actual_centers_dist = 7.62* (centers_dist/old_pixel_dist)  # 3 inches = 0.076 meters = 7.6 cm
-                
-                angle = np.arctan(x_distance/y_distance)
+                x_distance = 7.62*(abs(aruco_center[0]-frame_centre[0])/old_pixel_dist)
+                y_distance = 7.62*(abs(aruco_center[1]-frame_centre[1])/old_pixel_dist)
+                angle = np.arctan(y_distance/x_distance)
                 if ids==packageMarkerID and aruco_package==0:
                     aruco_package=1
                 elif ids==dropzoneMarkerID:
@@ -164,7 +224,7 @@ def detectColor():
         frame_centre = ((wf//2,hf//2))
         if not ret:
             break
-            #converting the frame to hsv format
+            #converting the frame to hsv format            
         hsv_frame =cv.cvtColor(frame,cv.COLOR_BGR2HSV)
 
         #defining the hsv of the color to be detected
@@ -197,8 +257,9 @@ def detectColor():
                 centers_dist = math.sqrt(((img_center[0]- frame_centre[0]) ** 2) + ((img_center[1] - frame_centre[1]) ** 2))
                 if w>0:
                     actual_centers_dist = 0.076* (centers_dist/w)  # 3 inches = 0.076 meters
-                    x_distance = 0.0762*(abs(img_center[0]-frame_centre[0])/centers_dist)
-                    y_distance = 0.0762*(abs(img_center[1]-frame_centre[1])/centers_dist)
+                    x_distance = 7.62*(abs(img_center[0]-frame_centre[0])/centers_dist)
+                    y_distance = 7.62*(abs(img_center[1]-frame_centre[1])/centers_dist)
+                    angle = np.arctan(y_distance/x_distance)
                     color=1
                     
         if color==1:
@@ -315,7 +376,8 @@ def Check():
     global aruco_package,aruco_dropzone,x_distance,y_distance,actual_centers_dist,angle,package1
     d=0
     de=5
-    print("Moved in y axis")
+    send_global_velocity(1,0,0,de)
+    print("Moved in x-axis")
     if aruco_package==0 and package1==0:
         print("Checking for aruco marker package")
         DetectAruco()
@@ -325,8 +387,7 @@ def Check():
     elif aruco_dropzone==0:
         print("Checking for dropzone package")
         DetectAruco() 
-    y=-2
-    send_global_velocity(1,0,0,de)
+    y=-2  
     while d<3:
         if aruco_package==1 or aruco_dropzone==1 or color==1:
             Calculate()
@@ -349,12 +410,13 @@ def Check():
             d=d+1
             if aruco_package==2 or color==2:
                 send_global_velocity(-1,0,0,de)
-                print("Dropzone detected")
+                print("searching for dropzone")
+                print("Moved in x axis")
             else:
                 send_global_velocity(1,0,0,de)
-                print("Dropzone not detected")
-            send_global_velocity(1,0,0,de)
-            print("Moved in x axis")
+                #print("Dropzone not detected")
+                print("Moved in x axis")
+          
             if aruco_package==0 and package1==0:
                 print("Checking for aruco marker package")
                 DetectAruco()
@@ -364,7 +426,7 @@ def Check():
             elif aruco_dropzone==0:
                 print("Checking for dropzone package")
                 DetectAruco()
-            if(d==1):
+            if d==1:
                 y=2
             else:
                 y=-2
