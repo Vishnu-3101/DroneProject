@@ -336,11 +336,12 @@ def Calculate():
             time.sleep(10)
             aruco_dropzone=0
 
-    count=0
+    
     if color==1:
+        count=0
         print("color detected")
         print("actual centers distance is: ",actual_centers_dist)
-        print("Duration is:",dur)
+        print("Velocity is:",velocity)
         while actual_centers_dist>0.05:
             if count<7:
                 print("Count Exceeded")
