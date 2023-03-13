@@ -1,5 +1,4 @@
 # DroneProject
 
-Hello. This is vishnu
+Hello. This is my project on autonomous drone
 
-Lets carry on
